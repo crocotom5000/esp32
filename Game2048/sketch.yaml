@@ -1,0 +1,8 @@
+profiles:
+  esp32:
+    notes: Waveshare ESP32-S3-Touch-AMOLED-1.64
+    fqbn: esp32:esp32:waveshare_esp32_s3_touch_amoled_164
+    platforms:
+      - platform: esp32:esp32 (3.3.12)
+    libraries:
+      - GFX Library for Arduino (1.6.9)
