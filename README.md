@@ -17,3 +17,5 @@ Sketches for the **Waveshare ESP32-S3-Touch-AMOLED-1.64**.
 - [BluetoothMouse](BluetoothMouse/) — pixel drawing and wheel-controlled ink
   smears with a Bluetooth LE mouse, touchscreen pairing, remembered bonding, and
   automatic reconnection.
+- [WindowManager](WindowManager/) — mouse-controlled floating text windows:
+  drag title bars, click to bring forward, + to create, and × to close.
