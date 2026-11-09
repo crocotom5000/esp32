@@ -14,3 +14,6 @@ Sketches for the **Waveshare ESP32-S3-Touch-AMOLED-1.64**.
   IMU. Tap to tare, with roll/pitch readout and auto-zero on boot.
 - [HeartRate](HeartRate/) — connects to a Wahoo Bluetooth LE heart rate strap
   and displays live BPM, contact status, and automatic reconnection.
+- [BluetoothMouse](BluetoothMouse/) — pixel drawing and wheel-controlled ink
+  smears with a Bluetooth LE mouse, touchscreen pairing, remembered bonding, and
+  automatic reconnection.
