@@ -12,3 +12,5 @@ Sketches for the **Waveshare ESP32-S3-Touch-AMOLED-1.64**.
 - [HelloTom](HelloTom/) — two-screen touchscreen greeting demo.
 - [SpiritLevel](SpiritLevel/) — bullseye spirit level using the onboard QMI8658
   IMU. Tap to tare, with roll/pitch readout and auto-zero on boot.
+- [HeartRate](HeartRate/) — connects to a Wahoo Bluetooth LE heart rate strap
+  and displays live BPM, contact status, and automatic reconnection.
