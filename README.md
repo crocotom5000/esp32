@@ -19,3 +19,6 @@ Sketches for the **Waveshare ESP32-S3-Touch-AMOLED-1.64**.
   automatic reconnection.
 - [WindowManager](WindowManager/) — mouse-controlled floating text windows:
   drag title bars, click to bring forward, + to create, and × to close.
+- [BluetoothTrackpad](BluetoothTrackpad/) — pair with a computer as a Bluetooth
+  LE mouse; slide on the touchscreen to move its cursor, tap to click, scroll,
+  and toggle drag with on-screen buttons.
