@@ -6,6 +6,11 @@
 using namespace heart_rate;
 
 int main() {
+  assert(isFitbitEdgeName("Google Fitbit Edge"));
+  assert(isFitbitEdgeName("google fitbit edge"));
+  assert(!isFitbitEdgeName("Fitbit"));
+  assert(!isFitbitEdgeName("Wahoo TICKR"));
+  assert(!isFitbitEdgeName(nullptr));
   Measurement value;
   const uint8_t basic[] = {0x00, 72};
   assert(parseMeasurement(basic, sizeof(basic), value));

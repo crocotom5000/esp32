@@ -33,6 +33,7 @@ struct MonitorState {
   bool hasReading = false;
   uint32_t receivedAt = 0;
   uint32_t packets = 0;
+  bool fitbit = false;
 };
 
 static MonitorState state;
@@ -66,6 +67,10 @@ bool takeRescanRequest() {
 void onMeasurement(BLERemoteCharacteristic *, uint8_t *data, size_t length, bool) {
   heart_rate::Measurement value;
   if (!heart_rate::parseMeasurement(data, length, value)) return;
+  Serial.printf("HR fields: contact=%s, RR=%s, energy=%s, bytes=%u\n",
+                value.contactSupported ? "supported" : "not supplied",
+                value.hasRR ? "yes" : "no", (data[0] & 0x08) ? "yes" : "no",
+                unsigned(length));
   const uint32_t now = millis();
   portENTER_CRITICAL(&stateMux);
   if (state.phase == Phase::CONNECTED) {
@@ -90,6 +95,48 @@ void retryPause() {
   }
 }
 
+// Read advertised readable values, but never issue proprietary writes.
+void logCapabilities(BLEClient *client) {
+  auto *services = client->getServices();
+  if (!services) return;
+  for (const auto &entry : *services) {
+    BLERemoteService *service = entry.second;
+    Serial.printf("BLE service: %s\n", service->getUUID().toString().c_str());
+    auto *characteristics = service->getCharacteristics();
+    if (!characteristics) continue;
+    for (const auto &item : *characteristics) {
+      BLERemoteCharacteristic *characteristic = item.second;
+      Serial.printf("  characteristic: %s read=%d notify=%d\n",
+                    characteristic->getUUID().toString().c_str(),
+                    characteristic->canRead(), characteristic->canNotify());
+      if (!characteristic->canRead()) continue;
+      const BLEUUID uuid = characteristic->getUUID();
+      if (uuid.equals(BLEUUID(uint16_t(0x2A19))) ||
+          uuid.equals(BLEUUID(uint16_t(0x2A38)))) {
+        const String value = characteristic->readValue();
+        if (value.length() == 1)
+          Serial.printf("  %s: %u\n",
+                        uuid.equals(BLEUUID(uint16_t(0x2A19))) ? "Battery percent" : "Body sensor location",
+                        unsigned(uint8_t(value[0])));
+      } else if (service->getUUID().equals(BLEUUID(uint16_t(0x180A))) ||
+                 (service->getUUID().toString().length() == 36 &&
+                  !service->getUUID().toString().endsWith("-0000-1000-8000-00805f9b34fb"))) {
+        const String value = characteristic->readValue();
+        Serial.printf("  Value (%u bytes; empty may mean read failed):",
+                      unsigned(value.length()));
+        for (size_t i = 0; i < value.length(); ++i)
+          Serial.printf(" %02x", uint8_t(value[i]));
+        Serial.print("\n  ASCII: ");
+        for (size_t i = 0; i < value.length(); ++i) {
+          const uint8_t byte = value[i];
+          Serial.write(byte >= 32 && byte <= 126 ? byte : '.');
+        }
+        Serial.println();
+      }
+    }
+  }
+}
+
 void bluetoothTask(void *) {
   BLEDevice::init("Waveshare Heart Rate");
   BLEScan *scan = BLEDevice::getScan();
@@ -101,7 +148,8 @@ void bluetoothTask(void *) {
 
   while (true) {
     takeRescanRequest();
-    setPhase(Phase::SCANNING, "Looking for Wahoo");
+    const bool fitbit = snapshot().fitbit;
+    setPhase(Phase::SCANNING, fitbit ? "Looking for Fitbit" : "Looking for Wahoo");
     BLEScanResults *results = scan->start(4, false);
     int selected = -1;
     if (results) {
@@ -110,15 +158,21 @@ void bluetoothTask(void *) {
         const String name = device.getName();
         const String address = device.getAddress().toString();
         const bool hasHR = device.isAdvertisingService(hrService);
-        if (hasHR || heart_rate::isWahooName(name.c_str())) {
+        if (hasHR || heart_rate::isWahooName(name.c_str()) ||
+            heart_rate::isFitbitEdgeName(name.c_str())) {
           Serial.printf("HR candidate: %s [%s], HR service=%d\n",
                         name.c_str(), address.c_str(), hasHR);
         }
-        const bool matches = TARGET_ADDRESS[0]
+        const bool matches = !fitbit && TARGET_ADDRESS[0]
             ? address.equalsIgnoreCase(TARGET_ADDRESS)
-            : hasHR && heart_rate::isWahooName(name.c_str());
+            : fitbit ? heart_rate::isFitbitEdgeName(name.c_str())
+                     : hasHR && heart_rate::isWahooName(name.c_str());
         if (matches && selected < 0) selected = i;
       }
+    }
+    if (snapshot().fitbit != fitbit) {
+      scan->clearResults();
+      continue;
     }
     if (selected < 0) {
       scan->clearResults();
@@ -146,12 +200,12 @@ void bluetoothTask(void *) {
     }
 
     // Force rediscovery on every connection; do not reuse old GATT handles.
-    client->getServices();
+    logCapabilities(client);
     BLERemoteService *service = client->getService(hrService);
     BLERemoteCharacteristic *measurement = service ? service->getCharacteristic(hrMeasurement) : nullptr;
     if (!measurement || !measurement->canNotify() ||
         !measurement->getDescriptor(BLEUUID(uint16_t(0x2902)))) {
-      setPhase(Phase::RETRYING, "No HR notifications");
+      setPhase(Phase::RETRYING, "No standard BLE HR");
       disconnectStrap(client);
       retryPause();
       continue;
@@ -214,6 +268,7 @@ void drawScreen(const MonitorState &current) {
   const uint16_t statusColor = live ? C_GREEN : C_AMBER;
   frame->fillScreen(C_BG);
   centered("HEART RATE", 26, 3, C_TEXT);
+  centered(current.fitbit ? "GOOGLE FITBIT EDGE" : "WAHOO", 53, 1, C_DIM);
   frame->fillRoundRect(32, 70, 216, 28, 14, RGB565(18, 27, 35));
   const char *label = current.phase == Phase::SCANNING ? "SEARCHING" :
       current.phase == Phase::CONNECTING ? "CONNECTING" :
@@ -253,7 +308,7 @@ void drawScreen(const MonitorState &current) {
              (unsigned long)(uint32_t(now - current.receivedAt) / 1000));
     centered(text, 398, 1, C_DIM);
   }
-  centered("Tap anywhere to reconnect", 425, 1, C_DIM);
+  centered("Tap: reconnect / Hold: switch", 425, 1, C_DIM);
   gfx->draw16bitRGBBitmap(0, 0, frame->getFramebuffer(), WIDTH, HEIGHT);
 }
 
@@ -290,9 +345,28 @@ void loop() {
   static bool wasDown = false;
   static uint32_t lastTouch = 0;
   static uint32_t lastDraw = 0;
+  static uint32_t touchStarted = 0;
+  static bool switched = false;
   const uint32_t now = millis();
   const bool down = touchDown();
-  if (down && !wasDown && heart_rate::elapsed(now, lastTouch, 500)) {
+  if (down && !wasDown) {
+    touchStarted = now;
+    switched = false;
+  }
+  if (down && !switched && heart_rate::elapsed(now, touchStarted, 1000)) {
+    portENTER_CRITICAL(&stateMux);
+    state.fitbit = !state.fitbit;
+    state.hasReading = false;
+    state.phase = Phase::RETRYING;
+    snprintf(state.message, sizeof(state.message), "Switching monitor");
+    snprintf(state.name, sizeof(state.name), "No strap connected");
+    state.address[0] = '\0';
+    rescanRequested = true;
+    portEXIT_CRITICAL(&stateMux);
+    switched = true;
+    lastTouch = now;
+  }
+  if (!down && wasDown && !switched && heart_rate::elapsed(now, lastTouch, 500)) {
     portENTER_CRITICAL(&stateMux);
     rescanRequested = true;
     portEXIT_CRITICAL(&stateMux);

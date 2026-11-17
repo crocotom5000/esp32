@@ -67,6 +67,10 @@ inline bool isWahooName(const char *name) {
          containsIgnoreCase(name, "trackr");
 }
 
+inline bool isFitbitEdgeName(const char *name) {
+  return containsIgnoreCase(name, "Google Fitbit Edge");
+}
+
 inline bool usable(const Measurement &value) {
   return value.bpm != 0 && (!value.contactSupported || value.contactDetected);
 }

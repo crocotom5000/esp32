@@ -15,7 +15,9 @@ Live Wahoo heart rate on the **Waveshare ESP32-S3-Touch-AMOLED-1.64**.
   last measurement. Shows the latest RR interval when the strap supplies it.
 - Blanks BPM after 5 seconds without data, on lost skin contact (when reported),
   or when disconnected. Reconnects after disconnection or 20 seconds without data.
-- Tap anywhere to reconnect. Scanning/connecting runs in a separate task so the
+- Tap anywhere to reconnect; hold for one second to switch between Wahoo and
+  **Google Fitbit Edge** (starts with Wahoo after reboot).
+  Scanning/connecting runs in a separate task so the
   display and touch remain responsive. A tap during a scan/connection may take
   until that operation finishes to take effect.
 - The heart icon flashes on incoming measurements; it is not an ECG or a
@@ -38,6 +40,13 @@ Change the port if needed. Uploading replaces the sketch currently on the board.
 
 ## Connect your strap
 
+For Google Fitbit Edge, hold the screen for one second to select it. Discovery
+matches its advertised name, then checks for the standard BLE Heart Rate service
+and notifications. If it reports **No standard BLE HR**, the device does not
+expose the required interface in its current mode; name matching cannot add
+support for a proprietary Fitbit protocol. `TARGET_ADDRESS` applies only to
+the Wahoo selection.
+
 1. Put the strap on and wet the chest electrodes to wake it (or turn on your
    optical strap). Keep it near the board.
 2. Boot the board; it will find and connect to the first matching advertisement.
@@ -54,7 +63,12 @@ still expose the standard Heart Rate service. BLE addresses can change on
 devices using address privacy. The target is compiled in, not saved by tapping.
 
 Serial diagnostics at 115200 baud list discovered HR/Wahoo candidates and
-connection progress. No persistent pairing/bond is created.
+connection progress. On connection they also list GATT service/characteristic
+UUIDs and read/notify capabilities, plus battery percentage and body sensor
+location when readable. Each HR notification logs whether contact status,
+RR intervals, and energy fields are supplied. Device-information and readable
+vendor characteristics are dumped as hex/ASCII (may include serial numbers).
+No proprietary commands are sent and no persistent pairing/bond is created.
 
 ## Hardware
 
